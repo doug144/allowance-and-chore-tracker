@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Allowance & Chore Tracker</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Bangers&family=Caveat:wght@700&family=Comfortaa:wght@700&family=Fredoka:wght@400;600&family=Inter:wght@400;600&family=Luckiest+Guy&family=Montserrat:wght@700&family=Outfit:wght@400;600&family=Pacifico&family=Permanent+Marker&family=Quicksand:wght@500;700&family=Righteous&family=Space+Grotesk:wght@500;700&family=Syne:wght@700&family=Titan+One&display=swap" rel="stylesheet">
+  <style>
+    :root { 
+      --primary: #3b82f6; --bg: #f8fafc; --text: #1e293b;
+      --card-bg: white; --border: #e2e8f0; --success: #16a34a;
+      --danger: #ef4444; --input-bg: white; --muted: #64748b;
+      --title-font: system-ui, -apple-system, sans-serif;
+      --body-font: system-ui, -apple-system, sans-serif;
+    }
+
+    body.theme-light { 
+      --bg: #f8fafc; --text: #1e293b; --card-bg: white; 
+      --border: #e2e8f0; --input-bg: white; --muted: #64748b; 
+      --title-font: system-ui, -apple-system, sans-serif;
+      --body-font: system-ui, -apple-system, sans-serif;
+    }
+    
+    body.theme-dark { 
+      --bg: #0f172a; --text: #f8fafc; --card-bg: #1e293b; 
+      --border: #334155; --success: #4ade80; --danger: #f87171; 
+      --input-bg: #0f172a; --muted: #94a3b8; 
+      --title-font: system-ui, -apple-system, sans-serif;
+      --body-font: system-ui, -apple-system, sans-serif;
+    }
+
+    body.theme-custom {
+      --bg: var(--custom-bg, #f0fdf4);
+      --text: var(--custom-text, #14532d);
+      --card-bg: var(--custom-card, #ffffff);
+      --border: var(--custom-border, #bbf7d0);
+      --input-bg: var(--custom-card, #ffffff);
+      --muted: var(--custom-muted, #166534);
+    }
+
+    body { font-family: var(--body-font); background: var(--bg); color: var(--text); margin: 0; padding: 1rem; transition: background 0.3s, color 0.3s; }
+    h1, h2, h3, details.collapsible-section summary { font-family: var(--title-font); }
+    
+    .container { max-width: 600px; margin: 0 auto; background: var(--card-bg); padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    h1, h2, h3 { text-align: center; }
+    
+    .grid { display: grid; gap: 1rem; margin-top: 1rem; }
+    .card { border: 2px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center; cursor: pointer; transition: 0.2s; background: var(--card-bg); color: var(--text); }
+    .card:active { border-color: var(--primary); opacity: 0.8; }
+    
+    .balance { font-size: 2.5rem; font-weight: bold; color: var(--success); text-align: center; margin: 0.5rem 0; }
+    
+    .btn { background: var(--primary); color: white; border: none; padding: 0.75rem; border-radius: 6px; font-size: 1rem; cursor: pointer; width: 100%; margin-top: 0.5rem; font-family: var(--body-font); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-success { background: var(--success); }
+    .btn-danger { background: var(--danger); }
+    .btn-secondary { background: var(--muted); }
+    .btn-group { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    
+    .form-group { margin-bottom: 1rem; text-align: left; }
+    .form-control { width: 100%; padding: 0.75rem; border: 2px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); box-sizing: border-box; margin-top: 0.25rem; font-size: 1rem; font-family: var(--body-font); }
+    
+    .pin-input { font-size: 2rem; letter-spacing: 0.5rem; text-align: center; }
+    .header-actions { float: right; display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .header-btn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-family: var(--body-font); }
+    
+    /* Collapsible Section Styles */
+    details.collapsible-section { border: 2px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; background: var(--input-bg); }
+    details.collapsible-section summary { font-size: 1.25rem; font-weight: bold; cursor: pointer; outline: none; user-select: none; }
+    details.collapsible-section summary::-webkit-details-marker { color: var(--primary); }
+
+    /* Calendar & Day Scroller Styles */
+    .day-scroller { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.5rem 0; margin-bottom: 1rem; scroll-snap-type: x mandatory; }
+    .day-card { flex: 0 0 auto; width: 75px; text-align: center; border: 2px solid var(--border); border-radius: 8px; padding: 0.5rem; cursor: pointer; scroll-snap-align: start; background: var(--card-bg); color: var(--text); transition: 0.2s; }
+    .day-card.active { border-color: var(--primary); background: var(--primary); color: white; }
+    .day-card.active .day-sub { color: rgba(255,255,255,0.8); }
+    .day-name { font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
+    .day-num { font-size: 1.2rem; font-weight: bold; margin: 0.2rem 0; }
+    .day-sub { font-size: 0.7rem; color: var(--muted); }
+    
+    .day-summary-box { border: 2px solid var(--border); border-radius: 8px; padding: 1rem; margin-top: 0.5rem; background: var(--input-bg); }
+    .day-total { font-size: 1.25rem; font-weight: bold; color: var(--success); margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    
+    .ledger-item { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; align-items: center; }
+    .ledger-item:last-child { border-bottom: none; }
+    .status-Pending { color: #eab308; font-size: 0.75rem; }
+    .status-Approved { color: var(--success); font-size: 0.75rem; }
+    .status-Rejected { color: var(--danger); font-size: 0.75rem; }
+
+    .checkbox-group { display: flex; flex-direction: column; gap: 0.5rem; text-align: left; margin-top: 0.25rem; }
+    .checkbox-group label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: var(--card-bg);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+      display: none;
+      z-index: 1000;
+      font-family: var(--body-font);
+    }
+  </style>
+</head>
+<body class="theme-light" id="appBody">
+
+<div class="container" id="app">
+  <h2>Loading...</h2>
+</div>
+
+<div id="toast">Updating...</div>
+
+<script src="config.js"></script>
+<script>
+  const API_URL = window.APP_CONFIG ? window.APP_CONFIG.API_URL : "";
+  
+  let state = { 
+    users: [], 
+    chores: [], 
+    transactions: [], 
+    currentUser: null, 
+    pendingUserId: null, 
+    currentView: 'select', 
+    editChoreId: null,
+    selectedDate: new Date().toISOString().split('T')[0],
+    choreSearchQuery: '',
+    choresOpen: true,
+    calendarScrollLeft: null,
+    txFilterKid: '',
+    txFilterDate: '',
+    txFilterChore: '',
+    txSearchQuery: '',
+    impersonatingFromParent: false,
+    theme: localStorage.getItem('appTheme') || 'light',
+    customPrimary: localStorage.getItem('customPrimary') || '#3b82f6',
+    customBg: localStorage.getItem('customBg') || '#f0fdf4',
+    customCard: localStorage.getItem('customCard') || '#ffffff',
+    customText: localStorage.getItem('customText') || '#14532d',
+    customTitleFont: localStorage.getItem('customTitleFont') || 'system-ui, -apple-system, sans-serif',
+    customBodyFont: localStorage.getItem('customBodyFont') || 'system-ui, -apple-system, sans-serif'
+  };
+  let isFirstLoad = true;
+
+  applyTheme(state.theme);
+
+  function applyTheme(themeName) {
+    state.theme = themeName;
+    localStorage.setItem('appTheme', themeName);
+    const body = document.getElementById('appBody');
+    body.className = `theme-${themeName}`;
+
+    if (themeName === 'custom') {
+      document.documentElement.style.setProperty('--primary', state.customPrimary);
+      document.documentElement.style.setProperty('--custom-bg', state.customBg);
+      document.documentElement.style.setProperty('--custom-card', state.customCard);
+      document.documentElement.style.setProperty('--custom-text', state.customText);
+      document.documentElement.style.setProperty('--title-font', state.customTitleFont);
+      document.documentElement.style.setProperty('--body-font', state.customBodyFont);
+    } else {
+      document.documentElement.style.setProperty('--primary', '#3b82f6');
+      document.documentElement.style.setProperty('--title-font', 'system-ui, -apple-system, sans-serif');
+      document.documentElement.style.setProperty('--body-font', 'system-ui, -apple-system, sans-serif');
+    }
+  }
+
+  function handleThemeChange(selectElem) {
+    const val = selectElem.value;
+    applyTheme(val);
+    refreshCurrentView();
+  }
+
+  function saveCustomThemeSettings() {
+    const primaryInput = document.getElementById('customPrimaryInput');
+    const bgInput = document.getElementById('customBgInput');
+    const cardInput = document.getElementById('customCardInput');
+    const textInput = document.getElementById('customTextInput');
+    const titleFontInput = document.getElementById('customTitleFontInput');
+    const bodyFontInput = document.getElementById('customBodyFontInput');
+    
+    if (primaryInput) {
+      state.customPrimary = primaryInput.value;
+      localStorage.setItem('customPrimary', state.customPrimary);
+    }
+    if (bgInput) {
+      state.customBg = bgInput.value;
+      localStorage.setItem('customBg', state.customBg);
+    }
+    if (cardInput) {
+      state.customCard = cardInput.value;
+      localStorage.setItem('customCard', state.customCard);
+    }
+    if (textInput) {
+      state.customText = textInput.value;
+      localStorage.setItem('customText', state.customText);
+    }
+    if (titleFontInput) {
+      state.customTitleFont = titleFontInput.value;
+      localStorage.setItem('customTitleFont', state.customTitleFont);
+    }
+    if (bodyFontInput) {
+      state.customBodyFont = bodyFontInput.value;
+      localStorage.setItem('customBodyFont', state.customBodyFont);
+    }
+    applyTheme('custom');
+    refreshCurrentView();
+  }
+
+  function renderThemeSelector() {
+    let html = `<div style="display: flex; gap: 0.5rem; align-items: center;">
+      <button class="header-btn" style="padding: 0.4rem 0.6rem;" onclick="loadData()" title="Refresh Data">🔄</button>
+      <select class="header-btn" style="padding: 0.4rem;" onchange="handleThemeChange(this)">
+        <option value="light" ${state.theme === 'light' ? 'selected' : ''}>☀️ Light</option>
+        <option value="dark" ${state.theme === 'dark' ? 'selected' : ''}>🌙 Dark</option>
+        <option value="custom" ${state.theme === 'custom' ? 'selected' : ''}>🎨 Custom</option>
+      </select>
+    </div>`;
+    return html;
+  }
+
+  function renderCustomThemeSettingsHTML() {
+    if (state.theme !== 'custom') return '';
+    return `<hr style="border-color: var(--border); margin: 1.5rem 0;">
+    <div class="card" style="text-align: left;">
+      <h4>Custom Theme Settings</h4>
+      <div style="display:flex; flex-wrap:wrap; gap:1rem; justify-content:space-between; margin-bottom:1rem; font-size: 0.9rem;">
+        <label>Primary: <input type="color" id="customPrimaryInput" value="${state.customPrimary}" onchange="saveCustomThemeSettings()"></label>
+        <label>Page BG: <input type="color" id="customBgInput" value="${state.customBg}" onchange="saveCustomThemeSettings()"></label>
+        <label>Card BG: <input type="color" id="customCardInput" value="${state.customCard}" onchange="saveCustomThemeSettings()"></label>
+        <label>Text: <input type="color" id="customTextInput" value="${state.customText}" onchange="saveCustomThemeSettings()"></label>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:1rem; justify-content:space-between; font-size: 0.9rem;">
+        <div class="form-group" style="flex:1; min-width: 140px; margin-bottom:0;">
+          <label>Title Font:</label>
+          <select id="customTitleFontInput" class="form-control" onchange="saveCustomThemeSettings()">
+            <option value="system-ui, -apple-system, sans-serif" ${state.customTitleFont.includes('system-ui') ? 'selected' : ''}>System Default</option>
+            <option value="'Fredoka', cursive, sans-serif" ${state.customTitleFont.includes('Fredoka') ? 'selected' : ''}>Fredoka (Fun)</option>
+            <option value="'Bangers', cursive" ${state.customTitleFont.includes('Bangers') ? 'selected' : ''}>Bangers (Comic/Bold)</option>
+            <option value="'Luckiest Guy', cursive" ${state.customTitleFont.includes('Luckiest Guy') ? 'selected' : ''}>Luckiest Guy (Cartoon)</option>
+            <option value="'Titan One', cursive" ${state.customTitleFont.includes('Titan One') ? 'selected' : ''}>Titan One (Chunky)</option>
+            <option value="'Pacifico', cursive" ${state.customTitleFont.includes('Pacifico') ? 'selected' : ''}>Pacifico (Script)</option>
+            <option value="'Permanent Marker', cursive" ${state.customTitleFont.includes('Permanent Marker') ? 'selected' : ''}>Permanent Marker (Marker)</option>
+            <option value="'Amatic SC', cursive" ${state.customTitleFont.includes('Amatic SC') ? 'selected' : ''}>Amatic SC (Handwritten)</option>
+            <option value="'Caveat', cursive" ${state.customTitleFont.includes('Caveat') ? 'selected' : ''}>Caveat (Cursive)</option>
+            <option value="'Comfortaa', cursive" ${state.customTitleFont.includes('Comfortaa') ? 'selected' : ''}>Comfortaa (Rounded)</option>
+            <option value="'Righteous', cursive" ${state.customTitleFont.includes('Righteous') ? 'selected' : ''}>Righteous (Retro)</option>
+            <option value="'Syne', sans-serif" ${state.customTitleFont.includes('Syne') ? 'selected' : ''}>Syne (Artistic)</option>
+            <option value="'Space Grotesk', sans-serif" ${state.customTitleFont.includes('Space Grotesk') ? 'selected' : ''}>Space Grotesk (Modern)</option>
+            <option value="'Outfit', sans-serif" ${state.customTitleFont.includes('Outfit') ? 'selected' : ''}>Outfit (Clean)</option>
+            <option value="'Quicksand', sans-serif" ${state.customTitleFont.includes('Quicksand') ? 'selected' : ''}>Quicksand (Round)</option>
+            <option value="'Montserrat', sans-serif" ${state.customTitleFont.includes('Montserrat') ? 'selected' : ''}>Montserrat (Strong)</option>
+            <option value="'Inter', sans-serif" ${state.customTitleFont.includes('Inter') ? 'selected' : ''}>Inter</option>
+            <option value="Arial, sans-serif" ${state.customTitleFont.includes('Arial') ? 'selected' : ''}>Arial</option>
+            <option value="Georgia, serif" ${state.customTitleFont.includes('Georgia') ? 'selected' : ''}>Georgia</option>
+            <option value="'Comic Sans MS', cursive, sans-serif" ${state.customTitleFont.includes('Comic Sans') ? 'selected' : ''}>Comic Sans</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1; min-width: 140px; margin-bottom:0;">
+          <label>Body Font:</label>
+          <select id="customBodyFontInput" class="form-control" onchange="saveCustomThemeSettings()">
+            <option value="system-ui, -apple-system, sans-serif" ${state.customBodyFont.includes('system-ui') ? 'selected' : ''}>System Default</option>
+            <option value="'Fredoka', cursive, sans-serif" ${state.customBodyFont.includes('Fredoka') ? 'selected' : ''}>Fredoka (Fun)</option>
+            <option value="'Bangers', cursive" ${state.customBodyFont.includes('Bangers') ? 'selected' : ''}>Bangers (Comic/Bold)</option>
+            <option value="'Luckiest Guy', cursive" ${state.customBodyFont.includes('Luckiest Guy') ? 'selected' : ''}>Luckiest Guy (Cartoon)</option>
+            <option value="'Titan One', cursive" ${state.customBodyFont.includes('Titan One') ? 'selected' : ''}>Titan One (Chunky)</option>
+            <option value="'Pacifico', cursive" ${state.customBodyFont.includes('Pacifico') ? 'selected' : ''}>Pacifico (Script)</option>
+            <option value="'Permanent Marker', cursive" ${state.customBodyFont.includes('Permanent Marker') ? 'selected' : ''}>Permanent Marker (Marker)</option>
+            <option value="'Amatic SC', cursive" ${state.customBodyFont.includes('Amatic SC') ? 'selected' : ''}>Amatic SC (Handwritten)</option>
+            <option value="'Caveat', cursive" ${state.customBodyFont.includes('Caveat') ? 'selected' : ''}>Caveat (Cursive)</option>
+            <option value="'Comfortaa', cursive" ${state.customBodyFont.includes('Comfortaa') ? 'selected' : ''}>Comfortaa (Rounded)</option>
+            <option value="'Righteous', cursive" ${state.customBodyFont.includes('Righteous') ? 'selected' : ''}>Righteous (Retro)</option>
+            <option value="'Syne', sans-serif" ${state.customBodyFont.includes('Syne') ? 'selected' : ''}>Syne (Artistic)</option>
+            <option value="'Space Grotesk', sans-serif" ${state.customBodyFont.includes('Space Grotesk') ? 'selected' : ''}>Space Grotesk (Modern)</option>
+            <option value="'Outfit', sans-serif" ${state.customTitleFont.includes('Outfit') ? 'selected' : ''}>Outfit (Clean)</option>
+            <option value="'Quicksand', sans-serif" ${state.customBodyFont.includes('Quicksand') ? 'selected' : ''}>Quicksand (Round)</option>
+            <option value="'Montserrat', sans-serif" ${state.customBodyFont.includes('Montserrat') ? 'selected' : ''}>Montserrat (Strong)</option>
+            <option value="'Inter', sans-serif" ${state.customBodyFont.includes('Inter') ? 'selected' : ''}>Inter</option>
+            <option value="Arial, sans-serif" ${state.customBodyFont.includes('Arial') ? 'selected' : ''}>Arial</option>
+            <option value="Georgia, serif" ${state.customBodyFont.includes('Georgia') ? 'selected' : ''}>Georgia</option>
+            <option value="'Comic Sans MS', cursive, sans-serif" ${state.customBodyFont.includes('Comic Sans') ? 'selected' : ''}>Comic Sans</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function showToast(msg = "Updating...") {
+    const t = document.getElementById('toast');
+    t.innerText = msg;
+    t.style.display = 'block';
+  }
+
+  function hideToast() {
+    document.getElementById('toast').style.display = 'none';
+  }
+
+  function roundNickel(val) {
+    return Math.round(parseFloat(val || 0) * 20) / 20;
+  }
+
+  function formatNickelInput(inputElement) {
+    inputElement.value = roundNickel(inputElement.value).toFixed(2);
+  }
+
+  async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function loadData(background = false) {
+    if (!background && !isFirstLoad) {
+      showToast("Syncing...");
+    }
+
+    try {
+      const res = await fetch(`${API_URL}?action=getData`);
+      const data = await res.json();
+      state.users = data.users;
+      state.chores = data.chores;
+      state.transactions = data.transactions;
+
+      if (state.currentUser) {
+        const updatedUser = state.users.find(u => String(u.ID) === String(state.currentUser.ID));
+        if (updatedUser) {
+          state.currentUser = updatedUser;
+        }
+      }
+
+      if (isFirstLoad) {
+        isFirstLoad = false;
+        const savedUserId = localStorage.getItem('rememberedUserId');
+        if (savedUserId && state.users.find(u => String(u.ID) === savedUserId)) {
+          promptPin(savedUserId);
+        } else {
+          renderUserSelect();
+        }
+      } else {
+        refreshCurrentView();
+      }
+    } catch (err) {
+      console.error("Sync error:", err);
+    } finally {
+      hideToast();
+    }
+  }
+
+  function refreshCurrentView() {
+    if (state.currentView === 'manageChores') renderManageChores();
+    else if (state.currentView === 'editChore') renderEditChore(state.editChoreId);
+    else if (state.currentView === 'manageKids') renderManageKids();
+    else if (state.currentView === 'parentDashboard') renderParentDashboard();
+    else if (state.currentView === 'dashboard') renderDashboard();
+    else if (state.currentView === 'pin') promptPin(state.pendingUserId);
+    else renderUserSelect();
+  }
+
+  function renderUserSelect() {
+    state.currentView = 'select';
+    let html = `<div class="header-actions" style="float: right;">${renderThemeSelector()}</div>
+      <h1 style="clear: both;">Who is logging in?</h1><div class="grid">`;
+    state.users.forEach(u => {
+      html += `<div class="card" onclick="promptPin('${u.ID}')"><h2>${u.Name}</h2></div>`;
+    });
+    html += `</div>
+      <div style="text-align: center; margin-top: 1.5rem;">
+        <label><input type="checkbox" id="rememberMe"> Remember me on this device</label>
+      </div>`;
+
+    html += renderCustomThemeSettingsHTML();
+
+    document.getElementById('app').innerHTML = html;
+  }
+
+  function promptPin(id) {
+    state.currentView = 'pin';
+    state.pendingUserId = id;
+    const user = state.users.find(u => String(u.ID) === String(id));
+    
+    const rememberCheckbox = document.getElementById('rememberMe');
+    if (rememberCheckbox && rememberCheckbox.checked) {
+      localStorage.setItem('rememberedUserId', id);
+    }
+    
+    let html = `
+      <div class="header-actions">
+        ${renderThemeSelector()}
+        <button class="header-btn" onclick="clearRemembered()">Back</button>
+      </div>
+      <h2 style="clear: both;">Enter PIN for ${user.Name}</h2>
+      <input type="password" inputmode="numeric" class="form-control pin-input" id="pinEntry" autofocus oninput="checkPin()">
+    `;
+    document.getElementById('app').innerHTML = html;
+    
+    setTimeout(() => {
+      const pinInput = document.getElementById('pinEntry');
+      if (pinInput) pinInput.focus();
+    }, 50);
+  }
+
+  async function checkPin() {
+    const input = document.getElementById('pinEntry').value;
+    const user = state.users.find(u => String(u.ID) === String(state.pendingUserId));
+    
+    const hashedInput = await sha256(String(input));
+    
+    if (hashedInput === String(user.Pin)) {
+      state.currentUser = user;
+      state.impersonatingFromParent = false;
+      if (String(user.ID).toLowerCase() === 'parent') {
+        renderParentDashboard();
+      } else {
+        renderDashboard();
+      }
+    }
+  }
+
+  function loginAsKid(userId) {
+    const user = state.users.find(u => String(u.ID) === String(userId));
+    if (user) {
+      state.currentUser = user;
+      state.impersonatingFromParent = true;
+      renderDashboard();
+    }
+  }
+
+  function returnToParentDashboard() {
+    const parentUser = state.users.find(u => String(u.ID).toLowerCase() === 'parent') || { ID: 'parent', Name: 'Parent' };
+    state.currentUser = parentUser;
+    state.impersonatingFromParent = false;
+    renderParentDashboard();
+  }
+
+  function clearRemembered() {
+    localStorage.removeItem('rememberedUserId');
+    state.currentUser = null;
+    state.pendingUserId = null;
+    state.impersonatingFromParent = false;
+    renderUserSelect();
+  }
+
+  function setSelectedDate(dateStr) {
+    const scroller = document.getElementById('dayScroller');
+    if (scroller) {
+      state.calendarScrollLeft = scroller.scrollLeft;
+    }
+    state.selectedDate = dateStr;
+    renderDashboard();
+  }
+
+  function updateChoreSearch(input) {
+    state.choreSearchQuery = input.value.toLowerCase();
+    const cards = document.querySelectorAll('.chore-card-item');
+    cards.forEach(card => {
+      const title = card.getAttribute('data-title').toLowerCase();
+      if (title.includes(state.choreSearchQuery)) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  function getWeekStr(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+  }
+
+  function updateTxFilters() {
+    state.txFilterKid = document.getElementById('txFilterKid').value;
+    state.txFilterDate = document.getElementById('txFilterDate').value;
+    state.txFilterChore = document.getElementById('txFilterChore').value;
+    state.txSearchQuery = document.getElementById('txSearchQuery').value.toLowerCase();
+    
+    const container = document.getElementById('txTableContainer');
+    if (container) {
+      container.innerHTML = renderFilteredTransactionsHTML();
+    }
+  }
+
+  function clearTxFilters() {
+    state.txFilterKid = '';
+    state.txFilterDate = '';
+    state.txFilterChore = '';
+    state.txSearchQuery = '';
+    renderParentDashboard();
+  }
+
+  function renderFilteredTransactionsHTML() {
+    const filtered = state.transactions.filter(t => {
+      const kidId = String(t['User ID']);
+      const tDate = new Date(t.Timestamp).toISOString().split('T')[0];
+      const choreTitle = String(t['Chore Title'] || "").toLowerCase();
+      
+      if (state.txFilterKid && kidId !== state.txFilterKid) return false;
+      if (state.txFilterDate && tDate !== state.txFilterDate) return false;
+      if (state.txFilterChore && String(t['Chore Title']) !== state.txFilterChore) return false;
+      
+      if (state.txSearchQuery) {
+        const kidName = (state.users.find(u => String(u.ID) === kidId)?.Name || "").toLowerCase();
+        const combinedText = `${choreTitle} ${kidName} ${t.Status} ${t.Value}`.toLowerCase();
+        if (!combinedText.includes(state.txSearchQuery)) return false;
+      }
+      return true;
+    });
+
+    let html = `<div style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0.5rem;">Showing ${filtered.length} of ${state.transactions.length} transactions</div>`;
+    
+    if (filtered.length === 0) {
+      html += `<p style="text-align:center; color: var(--muted);">No transactions match the selected filters.</p>`;
+    } else {
+      filtered.forEach(t => {
+        const kid = state.users.find(u => String(u.ID) === String(t['User ID']))?.Name || 'Unknown';
+        const val = parseFloat(t.Value || 0).toFixed(2);
+        const dateStr = new Date(t.Timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
+        html += `<div class="ledger-item" style="display:flex; justify-content:space-between; align-items:center; padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
+          <div>
+            <strong>${kid}</strong> — ${t['Chore Title']}
+            <div style="font-size: 0.75rem; color: var(--muted);">${dateStr}</div>
+          </div>
+          <div style="text-align:right;">
+            <div>$${val}</div>
+            <span class="status-${t.Status}">${t.Status}</span>
+          </div>
+        </div>`;
+      });
+    }
+    return html;
+  }
+
+  function renderDashboard() {
+    state.currentView = 'dashboard';
+    const multiplier = parseFloat(state.currentUser.Multiplier) || 1;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentWeekStr = getWeekStr(new Date());
+    
+    const headerButtonHtml = state.impersonatingFromParent 
+      ? `<button class="header-btn" onclick="returnToParentDashboard()">← Back to Parent Dashboard</button>`
+      : `<button class="header-btn" onclick="clearRemembered()">Logout</button>`;
+
+    let html = `<div class="header-actions">
+        ${renderThemeSelector()}
+        ${headerButtonHtml}
+      </div>
+      <h1 style="clear: both;">${state.currentUser.Name}'s Dashboard</h1>
+      <div class="balance">$${parseFloat(state.currentUser.Balance).toFixed(2)}</div>`;
+    
+    html += `<details class="collapsible-section" ${state.choresOpen ? 'open' : ''} ontoggle="state.choresOpen = this.open">
+      <summary>✨ Available Chores</summary>
+      
+      <div class="form-group" style="margin-top: 1rem;">
+        <input type="text" class="form-control" placeholder="Search chores..." value="${state.choreSearchQuery}" oninput="updateChoreSearch(this)">
+      </div>
+
+      <div class="grid">`;
+    
+    const lastDoneMap = {};
+    state.transactions.forEach(t => {
+      if (String(t['User ID']) === String(state.currentUser.ID) && String(t.Status) !== 'Rejected') {
+        const title = String(t['Chore Title']).trim();
+        const tTime = new Date(t.Timestamp).getTime();
+        if (!lastDoneMap[title] || tTime > lastDoneMap[title]) {
+          lastDoneMap[title] = tTime;
+        }
+      }
+    });
+
+    const availableChores = state.chores.filter(c => {
+      const assigned = String(c.AssignedKids || "").trim();
+      if (assigned && assigned.toLowerCase() !== 'all') {
+        const ids = assigned.split(',').map(i => i.trim());
+        if (!ids.includes(String(state.currentUser.ID))) return false;
+      }
+
+      const cadence = String(c.Cadence || "").toLowerCase();
+      if (cadence === 'daily' || cadence === 'weekly') {
+        const alreadyDone = state.transactions.some(t => {
+          if (String(t['User ID']) !== String(state.currentUser.ID)) return false;
+          if (String(t['Chore Title']).trim() !== String(c.Title).trim()) return false;
+          if (String(t.Status) === 'Rejected') return false; 
+
+          const txDate = new Date(t.Timestamp);
+          if (cadence === 'daily') {
+            return txDate.toISOString().split('T')[0] === todayStr;
+          } else if (cadence === 'weekly') {
+            return getWeekStr(txDate) === currentWeekStr;
+          }
+          return false;
+        });
+
+        if (alreadyDone) return false;
+      }
+
+      return true;
+    });
+
+    if (availableChores.length === 0) {
+      html += `<p style="text-align:center; color: var(--muted);">No chores available right now.</p>`;
+    } else {
+      availableChores.forEach(c => {
+        const useMult = String(c.UseMultiplier).toUpperCase() === 'TRUE';
+        const rawVal = parseFloat(c.Value) || 0;
+        const adjustedValue = roundNickel(useMult ? rawVal * multiplier : rawVal);
+        const matchesSearch = c.Title.toLowerCase().includes(state.choreSearchQuery);
+        
+        let lastDoneText = "Never done";
+        if (lastDoneMap[c.Title]) {
+          const d = new Date(lastDoneMap[c.Title]);
+          const dStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          lastDoneText = `Last done: ${dStr} at ${timeStr}`;
+        }
+        
+        html += `<div class="card chore-card-item" data-title="${c.Title}" style="display: ${matchesSearch ? 'block' : 'none'};">
+          <div>${c.Icon || '✨'} <strong>${c.Title}</strong></div>
+          <div>Value: $${adjustedValue.toFixed(2)} ${c.Cadence ? '(' + c.Cadence + ')' : ''}</div>
+          <div style="font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem;">${lastDoneText}</div>
+          <button class="btn" onclick="submitChore(this, '${c.Title}', ${adjustedValue})">Mark as Done</button>
+        </div>`;
+      });
+    }
+    html += `</div></details>`;
+
+    html += `<h3>Activity Calendar</h3>`;
+    
+    const myTx = state.transactions.filter(t => String(t['User ID']) === String(state.currentUser.ID));
+    
+    const txByDate = {};
+    myTx.forEach(t => {
+      const dStr = new Date(t.Timestamp).toISOString().split('T')[0];
+      if (!txByDate[dStr]) txByDate[dStr] = [];
+      txByDate[dStr].push(t);
+    });
+
+    html += `<div class="day-scroller" id="dayScroller">`;
+    const today = new Date();
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+      const dayName = d.toLocaleDateString(undefined, { weekday: 'short' });
+      const monthDay = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const isActive = dStr === state.selectedDate ? 'active' : '';
+      
+      const dayTx = txByDate[dStr] || [];
+      const dayEarned = dayTx.filter(t => t.Status === 'Approved').reduce((sum, t) => sum + parseFloat(t.Value || 0), 0);
+
+      html += `<div class="day-card ${isActive}" onclick="setSelectedDate('${dStr}')">
+        <div class="day-name">${dayName}</div>
+        <div class="day-num">${d.getDate()}</div>
+        <div class="day-sub">${dayEarned > 0 ? '$' + dayEarned.toFixed(2) : monthDay}</div>
+      </div>`;
+    }
+    html += `</div>`;
+
+    const selectedTx = txByDate[state.selectedDate] || [];
+    const selectedEarned = selectedTx.filter(t => t.Status === 'Approved').reduce((sum, t) => sum + parseFloat(t.Value || 0), 0);
+    const formattedSelectedDate = new Date(state.selectedDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+
+    html += `<div class="day-summary-box">
+      <div class="day-total">
+        <span>${formattedSelectedDate}</span>
+        <span>Total Earned: $${selectedEarned.toFixed(2)}</span>
+      </div>`;
+
+    if (selectedTx.length === 0) {
+      html += `<p style="text-align:center; color: var(--muted); margin: 0.5rem 0;">No chore activity on this day.</p>`;
+    } else {
+      selectedTx.forEach(t => {
+        const val = parseFloat(t.Value).toFixed(2);
+        html += `<div class="ledger-item">
+          <div>
+            <strong>${t['Chore Title']}</strong>
+          </div>
+          <div style="text-align:right;">
+            <div>$${val}</div>
+            <span class="status-${t.Status}">${t.Status}</span>
+          </div>
+        </div>`;
+      });
+    }
+
+    html += `</div>`;
+    
+    document.getElementById('app').innerHTML = html;
+
+    const scroller = document.getElementById('dayScroller');
+    if (scroller) {
+      if (state.calendarScrollLeft !== null) {
+        scroller.scrollLeft = state.calendarScrollLeft;
+      } else {
+        scroller.scrollLeft = scroller.scrollWidth;
+      }
+    }
+  }
+
+  function renderParentDashboard() {
+    state.currentView = 'parentDashboard';
+    state.impersonatingFromParent = false;
+    let html = `<div class="header-actions">
+        ${renderThemeSelector()}
+        <button class="header-btn" onclick="clearRemembered()">Logout</button>
+      </div>
+      <h1 style="clear: both;">Parent Dashboard</h1>
+      
+      <h3>Kids Balances</h3>
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 2rem;">`;
+      
+    state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
+      html += `<div class="card" style="text-align:center; padding: 0.75rem;" onclick="loginAsKid('${u.ID}')" title="Click to log in as ${u.Name}">
+        <div style="font-size: 0.85rem; color: var(--muted);">${u.Name}</div>
+        <div style="font-size: 1.4rem; font-weight: bold; color: var(--success);">$${parseFloat(u.Balance || 0).toFixed(2)}</div>
+      </div>`;
+    });
+    
+    html += `</div>
+      <hr style="border-color: var(--border); margin: 2rem 0;">
+      <h3>Pending Approvals</h3>
+      <div class="grid" style="margin-bottom: 2rem;">`;
+      
+    const pending = state.transactions.filter(t => t.Status === 'Pending');
+    
+    if (pending.length === 0) {
+      html += `<p style="text-align:center; color: var(--muted);">All caught up!</p>`;
+    } else {
+      pending.forEach(t => {
+        const kid = state.users.find(u => String(u.ID) === String(t['User ID']))?.Name || 'Unknown';
+        html += `<div class="card" style="text-align:left;">
+          <strong>${kid}</strong> completed <strong>${t['Chore Title']}</strong> ($${parseFloat(t.Value).toFixed(2)})
+          <div class="btn-group">
+            <button class="btn btn-success" onclick="processApproval(this, '${t.ID}', '${t['User ID']}', ${t.Value}, 'approveChore')">Approve</button>
+            <button class="btn btn-danger" onclick="processApproval(this, '${t.ID}', '${t['User ID']}', ${t.Value}, 'rejectChore')">Reject</button>
+          </div>
+        </div>`;
+      });
+    }
+    
+    html += `</div>
+      <hr style="border-color: var(--border); margin: 2rem 0;">
+      
+      <h3>Transaction History</h3>
+      <div class="card" style="text-align:left; margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+          <div class="form-group" style="margin-bottom:0.5rem;">
+            <label style="font-size:0.85rem;">Filter by Kid:</label>
+            <select id="txFilterKid" class="form-control" onchange="updateTxFilters()">
+              <option value="">All Kids</option>`;
+              state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
+                html += `<option value="${u.ID}" ${state.txFilterKid === String(u.ID) ? 'selected' : ''}>${u.Name}</option>`;
+              });
+    html += `</select>
+          </div>
+          <div class="form-group" style="margin-bottom:0.5rem;">
+            <label style="font-size:0.85rem;">Filter by Chore:</label>
+            <select id="txFilterChore" class="form-control" onchange="updateTxFilters()">
+              <option value="">All Chores</option>`;
+              const uniqueChores = [...new Set(state.transactions.map(t => t['Chore Title']))];
+              uniqueChores.forEach(title => {
+                html += `<option value="${title}" ${state.txFilterChore === title ? 'selected' : ''}>${title}</option>`;
+              });
+    html += `</select>
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top:0.5rem;">
+          <div class="form-group" style="margin-bottom:0.5rem;">
+            <label style="font-size:0.85rem;">Filter by Date:</label>
+            <input type="date" id="txFilterDate" class="form-control" value="${state.txFilterDate}" onchange="updateTxFilters()">
+          </div>
+          <div class="form-group" style="margin-bottom:0.5rem;">
+            <label style="font-size:0.85rem;">Search:</label>
+            <input type="text" id="txSearchQuery" class="form-control" placeholder="Search keywords..." value="${state.txSearchQuery}" oninput="updateTxFilters()">
+          </div>
+        </div>
+        
+        <div style="text-align: right; margin-top: 0.5rem;">
+          <button class="btn btn-secondary" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="clearTxFilters()">Reset Filters</button>
+        </div>
+
+        <div id="txTableContainer" style="margin-top: 1rem; max-height: 350px; overflow-y: auto;">
+          ${renderFilteredTransactionsHTML()}
+        </div>
+      </div>
+
+      <hr style="border-color: var(--border); margin: 2rem 0;">
+      <h3>Give Bonus or Deduction</h3>
+      <div class="card" style="text-align:left;">
+        <div class="form-group">
+          <label>Select Child:</label>
+          <select id="bonusUser" class="form-control">`;
+          state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
+            html += `<option value="${u.ID}">${u.Name}</option>`;
+          });
+    html += `</select>
+        </div>
+        <div class="form-group">
+          <label>Reason:</label>
+          <input type="text" id="bonusReason" class="form-control" placeholder="e.g., Birthday, Extra Help">
+        </div>
+        <div class="form-group">
+          <label>Amount (use negative to deduct):</label>
+          <input type="number" id="bonusAmount" class="form-control" step="0.05" onchange="formatNickelInput(this)">
+        </div>
+        <button class="btn btn-success" onclick="submitBonus(this)">Apply Transaction</button>
+      </div>
+      
+      <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+        <button class="btn btn-secondary" onclick="renderManageChores()">⚙️ Manage Chores</button>
+        <button class="btn btn-secondary" onclick="renderManageKids()">👦 Manage Kids</button>
+      </div>`;
+
+    html += renderCustomThemeSettingsHTML();
+      
+    document.getElementById('app').innerHTML = html;
+  }
+
+  function renderManageChores() {
+    state.currentView = 'manageChores';
+    let html = `<div class="header-actions">
+        ${renderThemeSelector()}
+        <button class="header-btn" onclick="renderParentDashboard()">Back</button>
+      </div>
+      <h1 style="clear: both;">Manage Chores</h1>
+      
+      <h3>Add New Chore</h3>
+      <div class="card" style="text-align:left; margin-bottom: 2rem;">
+        <div class="form-group">
+          <label>Title:</label>
+          <input type="text" id="newChoreTitle" class="form-control" placeholder="e.g., Feed the dog">
+        </div>
+        <div class="form-group">
+          <label>Value ($):</label>
+          <input type="number" id="newChoreValue" class="form-control" step="0.05" value="1.00" onchange="formatNickelInput(this)">
+        </div>
+        <div class="form-group">
+          <label>Icon (Emoji):</label>
+          <input type="text" id="newChoreIcon" class="form-control" placeholder="🐶" value="✨">
+        </div>
+        <div class="form-group">
+          <label>Cadence:</label>
+          <select id="newChoreCadence" class="form-control">
+            <option value="">Other (Unlimited)</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="newChoreUseMult" checked> Adjust value per kid multiplier</label>
+        </div>
+        <div class="form-group">
+          <label>Assigned Kids:</label>
+          <div class="checkbox-group">`;
+          state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
+            html += `<label><input type="checkbox" class="new-chore-kid" value="${u.ID}" checked> ${u.Name}</label>`;
+          });
+    html += `</div>
+        </div>
+        <button class="btn btn-success" onclick="processAddChore(this)">Add Chore</button>
+      </div>
+
+      <h3>Existing Chores</h3>
+      <div class="grid">`;
+      
+    state.chores.forEach(c => {
+      html += `<div class="card" style="text-align:left;">
+        <div style="font-size: 1.25rem;">${c.Icon || '✨'} <strong>${c.Title}</strong></div>
+        <div style="color: var(--muted); margin-bottom: 0.5rem;">Value: $${parseFloat(c.Value).toFixed(2)} ${c.Cadence ? '(' + c.Cadence + ')' : ''}</div>
+        <button class="btn btn-secondary" onclick="renderEditChore('${c['Chore ID']}')">Edit Chore</button>
+      </div>`;
+    });
+
+    html += `</div>`;
+    document.getElementById('app').innerHTML = html;
+  }
+
+  function renderEditChore(choreId) {
+    state.currentView = 'editChore';
+    state.editChoreId = choreId;
+    
+    const c = state.chores.find(ch => String(ch['Chore ID']) === String(choreId));
+    if(!c) return;
+
+    const assignedList = String(c.AssignedKids || "").split(',').map(i => i.trim());
+    const isAllAssigned = !c.AssignedKids || c.AssignedKids.toLowerCase() === 'all';
+    const useMultChecked = c.UseMultiplier === undefined || String(c.UseMultiplier).toUpperCase() === 'TRUE';
+    const currentCadence = String(c.Cadence || "").toLowerCase();
+
+    let html = `<div class="header-actions">
+        ${renderThemeSelector()}
+        <button class="header-btn" onclick="renderManageChores()">Back</button>
+      </div>
+      <h1 style="clear: both;">Edit Chore</h1>
+      
+      <div class="card" style="text-align:left;">
+        <div class="form-group">
+          <label>Title:</label>
+          <input type="text" id="editChoreTitle" class="form-control" value="${c.Title}">
+        </div>
+        <div class="form-group">
+          <label>Value ($):</label>
+          <input type="number" id="editChoreValue" class="form-control" step="0.05" value="${c.Value}" onchange="formatNickelInput(this)">
+        </div>
+        <div class="form-group">
+          <label>Icon (Emoji):</label>
+          <input type="text" id="editChoreIcon" class="form-control" value="${c.Icon || ''}">
+        </div>
+        <div class="form-group">
+          <label>Cadence:</label>
+          <select id="editChoreCadence" class="form-control">
+            <option value="" ${currentCadence === '' ? 'selected' : ''}>Other (Unlimited)</option>
+            <option value="daily" ${currentCadence === 'daily' ? 'selected' : ''}>Daily</option>
+            <option value="weekly" ${currentCadence === 'weekly' ? 'selected' : ''}>Weekly</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="editChoreUseMult" ${useMultChecked ? 'checked' : ''}> Adjust value per kid multiplier</label>
+        </div>
+        <div class="form-group">
+          <label>Assigned Kids:</label>
+          <div class="checkbox-group">`;
+          state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
+            const isChecked = isAllAssigned || assignedList.includes(String(u.ID));
+            html += `<label><input type="checkbox" class="edit-chore-kid" value="${u.ID}" ${isChecked ? 'checked' : ''}> ${u.Name}</label>`;
+          });
+    html += `</div>
+        </div>
+        <button class="btn btn-success" onclick="processEditChore(this, '${c['Chore ID']}')">Save Changes</button>
+      </div>`;
+      
+    document.getElementById('app').innerHTML = html;
+  }
+
+  function renderManageKids() {
+    state.currentView = 'manageKids';
+    let html = `<div class="header-actions">
+        ${renderThemeSelector()}
+        <button class="header-btn" onclick="renderParentDashboard()">Back</button>
+      </div>
+      <h1 style="clear: both;">Manage Kids & Multipliers</h1>
+      <div class="grid">`;
+      
+    state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
+      const mult = u.Multiplier !== undefined && u.Multiplier !== "" ? u.Multiplier : 1;
+      html += `<div class="card" style="text-align:left;">
+        <h2>${u.Name}</h2>
+        <div class="form-group">
+          <label>Value Multiplier:</label>
+          <input type="number" id="mult_${u.ID}" class="form-control" step="0.1" value="${mult}">
+        </div>
+        <button class="btn btn-success" onclick="saveMultiplier(this, '${u.ID}')">Save Multiplier</button>
+      </div>`;
+    });
+
+    html += `</div>`;
+    document.getElementById('app').innerHTML = html;
+  }
+
+  async function submitChore(buttonElement, title, value) {
+    buttonElement.disabled = true;
+    buttonElement.innerText = "Submitting...";
+    showToast("Submitting chore...");
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'submitChore', userId: state.currentUser.ID, userName: state.currentUser.Name, choreTitle: title, value: value })
+      });
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      buttonElement.disabled = false;
+      buttonElement.innerText = "Mark as Done";
+      hideToast();
+    }
+  }
+
+  async function processApproval(buttonElement, txId, userId, value, action) {
+    buttonElement.disabled = true;
+    showToast(action === 'approveChore' ? "Approving..." : "Rejecting...");
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: action, txId: txId, userId: userId, value: value })
+      });
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      buttonElement.disabled = false;
+      hideToast();
+    }
+  }
+
+  async function submitBonus(buttonElement) {
+    const userId = document.getElementById('bonusUser').value;
+    const reason = document.getElementById('bonusReason').value;
+    const amount = roundNickel(document.getElementById('bonusAmount').value);
+    
+    if (!reason || isNaN(amount)) return alert("Please enter a valid reason and amount.");
+    
+    buttonElement.disabled = true;
+    buttonElement.innerText = "Applying...";
+    showToast("Applying transaction...");
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'addBonus', userId: userId, reason: reason, amount: amount })
+      });
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      buttonElement.disabled = false;
+      buttonElement.innerText = "Apply Transaction";
+      hideToast();
+    }
+  }
+
+  async function processAddChore(buttonElement) {
+    const title = document.getElementById('newChoreTitle').value;
+    const value = roundNickel(document.getElementById('newChoreValue').value);
+    const icon = document.getElementById('newChoreIcon').value;
+    const cadence = document.getElementById('newChoreCadence').value;
+    const useMultiplier = document.getElementById('newChoreUseMult').checked;
+    
+    const checkboxes = document.querySelectorAll('.new-chore-kid:checked');
+    const assignedKids = Array.from(checkboxes).map(cb => cb.value).join(',');
+
+    if(!title || isNaN(value)) return alert("Please enter a valid title and value.");
+
+    buttonElement.disabled = true;
+    buttonElement.innerText = "Adding...";
+    showToast("Adding chore...");
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'addChore', title: title, value: value, icon: icon, assignedKids: assignedKids, useMultiplier: useMultiplier, cadence: cadence })
+      });
+      state.currentView = 'manageChores';
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      buttonElement.disabled = false;
+      buttonElement.innerText = "Add Chore";
+      hideToast();
+    }
+  }
+
+  async function processEditChore(buttonElement, choreId) {
+    const title = document.getElementById('editChoreTitle').value;
+    const value = roundNickel(document.getElementById('editChoreValue').value);
+    const icon = document.getElementById('editChoreIcon').value;
+    const cadence = document.getElementById('editChoreCadence').value;
+    const useMultiplier = document.getElementById('editChoreUseMult').checked;
+    
+    const checkboxes = document.querySelectorAll('.edit-chore-kid:checked');
+    const assignedKids = Array.from(checkboxes).map(cb => cb.value).join(',');
+
+    if(!title || isNaN(value)) return alert("Please enter a valid title and value.");
+
+    buttonElement.disabled = true;
+    buttonElement.innerText = "Saving...";
+    showToast("Saving changes...");
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'editChore', choreId: choreId, title: title, value: value, icon: icon, assignedKids: assignedKids, useMultiplier: useMultiplier, cadence: cadence })
+      });
+      state.currentView = 'manageChores';
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      buttonElement.disabled = false;
+      buttonElement.innerText = "Save Changes";
+      hideToast();
+    }
+  }
+
+  async function saveMultiplier(buttonElement, userId) {
+    const multiplier = parseFloat(document.getElementById(`mult_${userId}`).value) || 1;
+    
+    buttonElement.disabled = true;
+    buttonElement.innerText = "Saving...";
+    showToast("Saving multiplier...");
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'updateUserMultiplier', userId: userId, multiplier: multiplier })
+      });
+      state.currentView = 'manageKids';
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      buttonElement.disabled = false;
+      buttonElement.innerText = "Save Multiplier";
+      hideToast();
+    }
+  }
+
+  loadData();
+</script>
+</body>
+</html>
