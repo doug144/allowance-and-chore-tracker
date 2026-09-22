@@ -9,6 +9,8 @@ A lightweight, multi-user web application for families to track kid chores, mana
 * **Custom Themes:** Built-in Light, Dark, and Custom color/font theme controls.
 * **No Database Costs:** Uses Google Sheets as a free, transparent backend database.
 * **Optional Webhooks:** Real-time event notifications triggered on chore submission, approval, or rejection.
+* **Flexible Chore Completion:** Kids can complete chores for today or retroactively select previous dates for missed tasks.
+* **Cash-Out System:** Kids can request allowance payouts, and parents can approve them or issue direct cash-outs on demand.
 
 ---
 
@@ -30,6 +32,8 @@ A lightweight, multi-user web application for families to track kid chores, mana
       * `WEBHOOK_CHORE_SUBMITTED` | `https://your-webhook-endpoint-url`
       * `WEBHOOK_CHORE_APPROVED` | `https://your-webhook-endpoint-url`
       * `WEBHOOK_CHORE_REJECTED` | `https://your-webhook-endpoint-url`
+      * `WEBHOOK_CASHOUT_REQUESTED` | `https://your-webhook-endpoint-url`
+      * `WEBHOOK_CASHOUT_APPROVED` | `https://your-webhook-endpoint-url`
       * *(If key values are left blank, webhook execution is automatically skipped).*
 
 1. **Deploy Apps Script:**
@@ -74,6 +78,19 @@ Since the web app is a single, static frontend, it can be hosted for free on any
 1. **Deploy:** Click **Save and Deploy**. Cloudflare will generate a live `*.pages.dev` URL for your chore application. Every future `git push` to your GitHub repo will update your live site automatically.
 
 ---
+
+## 💡 How to Use Key Features
+
+### 📅 Submitting Chores from Previous Days
+Kids don't lose credit if they forget to log a chore on the day it was completed:
+1. Locate the chore under **Available Chores** on the kid dashboard.
+2. Click the date selector box on the chore card and pick the date the chore was actually completed.
+3. Click **Mark as Done**.
+
+### 💵 Cash-Outs & Payouts
+* **Kid Request:** Kids can expand the **Request Cash Out** section, enter a dollar amount and optional description, and click **Submit Cash Out Request**.
+* **Parent Approval:** Pending cash-out requests appear in the parent dashboard's **Pending Approvals** list with negative amounts for review and approval.
+* **Instant Parent Cash-Out:** Parents can also bypass requests and issue an immediate cash-out directly using the **Cash Out** card on the parent dashboard.
 
 ## 🔔 Optional Webhook Payloads
 

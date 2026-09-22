@@ -2,6 +2,8 @@ function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     if (data.action === "submitChore") return responseJSON(submitChore(data));
+    if (data.action === "requestCashout") return responseJSON(requestCashout(data));
+    if (data.action === "processCashout") return responseJSON(processCashout(data));
     if (data.action === "approveChore") return responseJSON(approveChore(data));
     if (data.action === "rejectChore") return responseJSON(rejectChore(data));
     if (data.action === "addBonus") return responseJSON(addBonus(data));
@@ -27,7 +29,7 @@ function responseJSON(data) {
 }
 
 // ---------------------------------------------------------
-// WEBHOOK HELPERS
+// WEBHOOK HELPERS (Parallel Safe)
 // ---------------------------------------------------------
 
 function getConfig(key) {
@@ -45,16 +47,21 @@ function getConfig(key) {
 function triggerWebhook(urlKey, payload) {
   const url = getConfig(urlKey);
   if (!url) return;
-  try {
-    UrlFetchApp.fetch(url, {
-      method: "post",
-      contentType: "application/json",
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-  } catch (err) {
-    console.error("Webhook error for " + urlKey + ": " + err.toString());
-  }
+  
+  const urls = url.split(/[,\n]/).map(u => u.trim()).filter(u => u);
+  
+  urls.forEach(targetUrl => {
+    try {
+      UrlFetchApp.fetch(targetUrl, {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+    } catch (err) {
+      console.error("Webhook error for " + urlKey + " (" + targetUrl + "): " + err.toString());
+    }
+  });
 }
 
 // ---------------------------------------------------------
@@ -65,7 +72,15 @@ function submitChore(data) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Transactions");
   const txId = Utilities.getUuid();
-  const timestamp = new Date().toISOString();
+  
+  // Use custom completion date if provided, otherwise default to current time
+  let timestamp;
+  if (data.completionDate) {
+    const d = new Date(data.completionDate + "T12:00:00.000Z"); // Use mid-day UTC to prevent time zone shifts
+    timestamp = d.toISOString();
+  } else {
+    timestamp = new Date().toISOString();
+  }
   
   sheet.appendRow([txId, data.userId, data.choreTitle, data.value, "Pending", timestamp]);
   
@@ -82,35 +97,103 @@ function submitChore(data) {
   return { status: "success", transactionId: txId };
 }
 
-function approveChore(data) {
+function requestCashout(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Transactions");
+  const txId = Utilities.getUuid();
+  const timestamp = new Date().toISOString();
+  const negativeValue = -Math.abs(parseFloat(data.amount));
+  const description = data.reason || "Cash out";
+  
+  sheet.appendRow([txId, data.userId, "Cash out: " + description, negativeValue, "Pending", timestamp]);
+  
+  triggerWebhook("WEBHOOK_CASHOUT_REQUESTED", {
+    event: "cashout_requested",
+    transactionId: txId,
+    userId: data.userId,
+    userName: data.userName,
+    description: description,
+    amount: Math.abs(negativeValue),
+    timestamp: timestamp
+  });
+  
+  return { status: "success", transactionId: txId };
+}
+
+function processCashout(data) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const txSheet = ss.getSheetByName("Transactions");
   const userSheet = ss.getSheetByName("Users");
+  const txId = Utilities.getUuid();
+  const timestamp = new Date().toISOString();
+  const negativeValue = -Math.abs(parseFloat(data.amount));
+  const description = data.reason || "Cash out";
   
-  const txData = txSheet.getDataRange().getValues();
-  for (let i = 1; i < txData.length; i++) {
-    if (String(txData[i][0]) === String(data.txId)) {
-      txSheet.getRange(i + 1, 5).setValue("Approved");
-      break;
-    }
-  }
+  txSheet.appendRow([txId, data.userId, "Cash out: " + description, negativeValue, "Approved", timestamp]);
   
   const userData = userSheet.getDataRange().getValues();
   for (let i = 1; i < userData.length; i++) {
     if (String(userData[i][0]) === String(data.userId)) {
       const currentBalance = parseFloat(userData[i][3]) || 0;
-      userSheet.getRange(i + 1, 4).setValue(currentBalance + parseFloat(data.value));
+      userSheet.getRange(i + 1, 4).setValue(currentBalance + negativeValue);
+      break;
+    }
+  }
+
+  triggerWebhook("WEBHOOK_CASHOUT_APPROVED", {
+    event: "cashout_approved",
+    transactionId: txId,
+    userId: data.userId,
+    amount: Math.abs(negativeValue),
+    timestamp: timestamp
+  });
+
+  return { status: "success" };
+}
+
+function approveChore(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const txSheet = ss.getSheetByName("Transactions");
+  const userSheet = ss.getSheetByName("Users");
+  
+  let choreTitle = "";
+  const txData = txSheet.getDataRange().getValues();
+  for (let i = 1; i < txData.length; i++) {
+    if (String(txData[i][0]) === String(data.txId)) {
+      txSheet.getRange(i + 1, 5).setValue("Approved");
+      choreTitle = String(txData[i][2]);
       break;
     }
   }
   
-  triggerWebhook("WEBHOOK_CHORE_APPROVED", {
-    event: "chore_approved",
-    transactionId: data.txId,
-    userId: data.userId,
-    value: data.value,
-    timestamp: new Date().toISOString()
-  });
+  const val = parseFloat(data.value);
+  const userData = userSheet.getDataRange().getValues();
+  for (let i = 1; i < userData.length; i++) {
+    if (String(userData[i][0]) === String(data.userId)) {
+      const currentBalance = parseFloat(userData[i][3]) || 0;
+      userSheet.getRange(i + 1, 4).setValue(currentBalance + val);
+      break;
+    }
+  }
+  
+  const isCashout = val < 0;
+  if (isCashout) {
+    triggerWebhook("WEBHOOK_CASHOUT_APPROVED", {
+      event: "cashout_approved",
+      transactionId: data.txId,
+      userId: data.userId,
+      amount: Math.abs(val),
+      timestamp: new Date().toISOString()
+    });
+  } else {
+    triggerWebhook("WEBHOOK_CHORE_APPROVED", {
+      event: "chore_approved",
+      transactionId: data.txId,
+      userId: data.userId,
+      value: val,
+      timestamp: new Date().toISOString()
+    });
+  }
   
   return { status: "success" };
 }

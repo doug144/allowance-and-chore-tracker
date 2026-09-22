@@ -65,12 +65,10 @@
     .header-actions { float: right; display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
     .header-btn { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-family: var(--body-font); }
     
-    /* Collapsible Section Styles */
     details.collapsible-section { border: 2px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; background: var(--input-bg); }
     details.collapsible-section summary { font-size: 1.25rem; font-weight: bold; cursor: pointer; outline: none; user-select: none; }
     details.collapsible-section summary::-webkit-details-marker { color: var(--primary); }
 
-    /* Calendar & Day Scroller Styles */
     .day-scroller { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.5rem 0; margin-bottom: 1rem; scroll-snap-type: x mandatory; }
     .day-card { flex: 0 0 auto; width: 75px; text-align: center; border: 2px solid var(--border); border-radius: 8px; padding: 0.5rem; cursor: pointer; scroll-snap-align: start; background: var(--card-bg); color: var(--text); transition: 0.2s; }
     .day-card.active { border-color: var(--primary); background: var(--primary); color: white; }
@@ -131,6 +129,7 @@
     selectedDate: new Date().toISOString().split('T')[0],
     choreSearchQuery: '',
     choresOpen: true,
+    cashoutOpen: false,
     calendarScrollLeft: null,
     txFilterKid: '',
     txFilterDate: '',
@@ -450,7 +449,12 @@
     if (scroller) {
       state.calendarScrollLeft = scroller.scrollLeft;
     }
-    state.selectedDate = dateStr;
+    // Toggle filter off if the clicked date was already selected
+    if (state.selectedDate === dateStr) {
+      state.selectedDate = null;
+    } else {
+      state.selectedDate = dateStr;
+    }
     renderDashboard();
   }
 
@@ -512,7 +516,7 @@
         if (!combinedText.includes(state.txSearchQuery)) return false;
       }
       return true;
-    });
+    }).sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
 
     let html = `<div style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0.5rem;">Showing ${filtered.length} of ${state.transactions.length} transactions</div>`;
     
@@ -556,6 +560,22 @@
       <h1 style="clear: both;">${state.currentUser.Name}'s Dashboard</h1>
       <div class="balance">$${parseFloat(state.currentUser.Balance).toFixed(2)}</div>`;
     
+    // Request Cash Out Details
+    html += `<details class="collapsible-section" ${state.cashoutOpen ? 'open' : ''} ontoggle="state.cashoutOpen = this.open">
+      <summary>💵 Request Cash Out</summary>
+      <div style="margin-top: 1rem;">
+        <div class="form-group">
+          <label>Amount ($):</label>
+          <input type="number" id="kidCashoutAmount" class="form-control" step="0.05" placeholder="0.00" onchange="formatNickelInput(this)">
+        </div>
+        <div class="form-group">
+          <label>Description:</label>
+          <input type="text" id="kidCashoutDesc" class="form-control" value="Cash out">
+        </div>
+        <button class="btn btn-success" onclick="submitCashoutRequest(this)">Submit Cash Out Request</button>
+      </div>
+    </details>`;
+
     html += `<details class="collapsible-section" ${state.choresOpen ? 'open' : ''} ontoggle="state.choresOpen = this.open">
       <summary>✨ Available Chores</summary>
       
@@ -613,6 +633,7 @@
         const rawVal = parseFloat(c.Value) || 0;
         const adjustedValue = roundNickel(useMult ? rawVal * multiplier : rawVal);
         const matchesSearch = c.Title.toLowerCase().includes(state.choreSearchQuery);
+        const cardKey = c['Chore ID'] || c.Title;
         
         let lastDoneText = "Never done";
         if (lastDoneMap[c.Title]) {
@@ -626,7 +647,11 @@
           <div>${c.Icon || '✨'} <strong>${c.Title}</strong></div>
           <div>Value: $${adjustedValue.toFixed(2)} ${c.Cadence ? '(' + c.Cadence + ')' : ''}</div>
           <div style="font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem;">${lastDoneText}</div>
-          <button class="btn" onclick="submitChore(this, '${c.Title}', ${adjustedValue})">Mark as Done</button>
+          
+          <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; align-items: center;">
+            <input type="date" id="date_${cardKey}" class="form-control" value="${todayStr}" style="padding: 0.4rem; font-size: 0.85rem; margin: 0;">
+            <button class="btn" style="margin: 0;" onclick="submitChore(this, '${c.Title}', ${adjustedValue}, 'date_${cardKey}')">Mark as Done</button>
+          </div>
         </div>`;
       });
     }
@@ -634,7 +659,9 @@
 
     html += `<h3>Activity Calendar</h3>`;
     
-    const myTx = state.transactions.filter(t => String(t['User ID']) === String(state.currentUser.ID));
+    const myTx = state.transactions
+      .filter(t => String(t['User ID']) === String(state.currentUser.ID))
+      .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
     
     const txByDate = {};
     myTx.forEach(t => {
@@ -664,24 +691,32 @@
     }
     html += `</div>`;
 
-    const selectedTx = txByDate[state.selectedDate] || [];
-    const selectedEarned = selectedTx.filter(t => t.Status === 'Approved').reduce((sum, t) => sum + parseFloat(t.Value || 0), 0);
-    const formattedSelectedDate = new Date(state.selectedDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+    // Filter transactions by selected date, or show all if no date is selected
+    const displayTx = state.selectedDate 
+      ? (txByDate[state.selectedDate] || [])
+      : myTx;
+
+    const displayEarned = displayTx.filter(t => t.Status === 'Approved').reduce((sum, t) => sum + parseFloat(t.Value || 0), 0);
+    const headerLabel = state.selectedDate 
+      ? new Date(state.selectedDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
+      : "All Activity History";
 
     html += `<div class="day-summary-box">
       <div class="day-total">
-        <span>${formattedSelectedDate}</span>
-        <span>Total Earned: $${selectedEarned.toFixed(2)}</span>
+        <span>${headerLabel}</span>
+        <span>Total Net: $${displayEarned.toFixed(2)}</span>
       </div>`;
 
-    if (selectedTx.length === 0) {
-      html += `<p style="text-align:center; color: var(--muted); margin: 0.5rem 0;">No chore activity on this day.</p>`;
+    if (displayTx.length === 0) {
+      html += `<p style="text-align:center; color: var(--muted); margin: 0.5rem 0;">No chore activity found.</p>`;
     } else {
-      selectedTx.forEach(t => {
+      displayTx.forEach(t => {
         const val = parseFloat(t.Value).toFixed(2);
+        const dateStr = new Date(t.Timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         html += `<div class="ledger-item">
           <div>
             <strong>${t['Chore Title']}</strong>
+            <div style="font-size: 0.75rem; color: var(--muted);">${dateStr}</div>
           </div>
           <div style="text-align:right;">
             <div>$${val}</div>
@@ -704,7 +739,7 @@
       }
     }
   }
-
+  
   function renderParentDashboard() {
     state.currentView = 'parentDashboard';
     state.impersonatingFromParent = false;
@@ -736,8 +771,25 @@
     } else {
       pending.forEach(t => {
         const kid = state.users.find(u => String(u.ID) === String(t['User ID']))?.Name || 'Unknown';
+        const isCashout = parseFloat(t.Value) < 0;
+        const valAbs = Math.abs(parseFloat(t.Value)).toFixed(2);
+        
+        // Format the date/time when the chore or cashout was logged
+        const doneDateStr = t.Timestamp ? new Date(t.Timestamp).toLocaleDateString(undefined, { 
+          weekday: 'short', 
+          month: 'short', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : '';
+
         html += `<div class="card" style="text-align:left;">
-          <strong>${kid}</strong> completed <strong>${t['Chore Title']}</strong> ($${parseFloat(t.Value).toFixed(2)})
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+              <strong>${kid}</strong> ${isCashout ? 'requested cash out:' : 'completed'} <strong>${t['Chore Title']}</strong> ($${valAbs})
+            </div>
+          </div>
+          ${doneDateStr ? `<div style="font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem;">📅 Date done: ${doneDateStr}</div>` : ''}
           <div class="btn-group">
             <button class="btn btn-success" onclick="processApproval(this, '${t.ID}', '${t['User ID']}', ${t.Value}, 'approveChore')">Approve</button>
             <button class="btn btn-danger" onclick="processApproval(this, '${t.ID}', '${t['User ID']}', ${t.Value}, 'rejectChore')">Reject</button>
@@ -794,25 +846,51 @@
       </div>
 
       <hr style="border-color: var(--border); margin: 2rem 0;">
-      <h3>Give Bonus or Deduction</h3>
-      <div class="card" style="text-align:left;">
-        <div class="form-group">
-          <label>Select Child:</label>
-          <select id="bonusUser" class="form-control">`;
-          state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
-            html += `<option value="${u.ID}">${u.Name}</option>`;
-          });
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+        <!-- Direct Cash Out Card -->
+        <div class="card" style="text-align:left;">
+          <h3>💵 Cash Out</h3>
+          <div class="form-group">
+            <label>Select Child:</label>
+            <select id="parentCashoutUser" class="form-control">`;
+            state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
+              html += `<option value="${u.ID}">${u.Name}</option>`;
+            });
     html += `</select>
+          </div>
+          <div class="form-group">
+            <label>Description:</label>
+            <input type="text" id="parentCashoutDesc" class="form-control" value="Cash out">
+          </div>
+          <div class="form-group">
+            <label>Amount ($):</label>
+            <input type="number" id="parentCashoutAmount" class="form-control" step="0.05" placeholder="0.00" onchange="formatNickelInput(this)">
+          </div>
+          <button class="btn btn-danger" onclick="submitParentCashout(this)">Process Cash Out</button>
         </div>
-        <div class="form-group">
-          <label>Reason:</label>
-          <input type="text" id="bonusReason" class="form-control" placeholder="e.g., Birthday, Extra Help">
+
+        <!-- Give Bonus / Deduction Card -->
+        <div class="card" style="text-align:left;">
+          <h3>🎁 Bonus / Deduction</h3>
+          <div class="form-group">
+            <label>Select Child:</label>
+            <select id="bonusUser" class="form-control">`;
+            state.users.filter(u => String(u.ID).toLowerCase() !== 'parent').forEach(u => {
+              html += `<option value="${u.ID}">${u.Name}</option>`;
+            });
+    html += `</select>
+          </div>
+          <div class="form-group">
+            <label>Reason:</label>
+            <input type="text" id="bonusReason" class="form-control" placeholder="e.g., Birthday, Extra Help">
+          </div>
+          <div class="form-group">
+            <label>Amount (negative to deduct):</label>
+            <input type="number" id="bonusAmount" class="form-control" step="0.05" placeholder="0.00" onchange="formatNickelInput(this)">
+          </div>
+          <button class="btn btn-success" onclick="submitBonus(this)">Apply Transaction</button>
         </div>
-        <div class="form-group">
-          <label>Amount (use negative to deduct):</label>
-          <input type="number" id="bonusAmount" class="form-control" step="0.05" onchange="formatNickelInput(this)">
-        </div>
-        <button class="btn btn-success" onclick="submitBonus(this)">Apply Transaction</button>
       </div>
       
       <div style="display: flex; gap: 1rem; margin-top: 2rem;">
@@ -824,7 +902,7 @@
       
     document.getElementById('app').innerHTML = html;
   }
-
+  
   function renderManageChores() {
     state.currentView = 'manageChores';
     let html = `<div class="header-actions">
@@ -966,7 +1044,10 @@
     document.getElementById('app').innerHTML = html;
   }
 
-  async function submitChore(buttonElement, title, value) {
+  async function submitChore(buttonElement, title, value, dateInputId) {
+    const dateInput = document.getElementById(dateInputId);
+    const selectedDate = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+
     buttonElement.disabled = true;
     buttonElement.innerText = "Submitting...";
     showToast("Submitting chore...");
@@ -974,13 +1055,71 @@
     try {
       await fetch(API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'submitChore', userId: state.currentUser.ID, userName: state.currentUser.Name, choreTitle: title, value: value })
+        body: JSON.stringify({
+          action: 'submitChore',
+          userId: state.currentUser.ID,
+          userName: state.currentUser.Name,
+          choreTitle: title,
+          value: value,
+          completionDate: selectedDate
+        })
       });
       loadData(true);
     } catch (err) {
       console.error(err);
       buttonElement.disabled = false;
       buttonElement.innerText = "Mark as Done";
+      hideToast();
+    }
+  }
+
+  async function submitCashoutRequest(buttonElement) {
+    const rawAmount = parseFloat(document.getElementById('kidCashoutAmount').value) || 0;
+    const amount = roundNickel(rawAmount);
+    const desc = document.getElementById('kidCashoutDesc').value || "Cash out";
+
+    if (amount <= 0) return alert("Please enter a valid amount greater than $0.");
+
+    buttonElement.disabled = true;
+    buttonElement.innerText = "Submitting...";
+    showToast("Submitting cash out request...");
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'requestCashout', userId: state.currentUser.ID, userName: state.currentUser.Name, reason: desc, amount: amount })
+      });
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      buttonElement.disabled = false;
+      buttonElement.innerText = "Submit Cash Out Request";
+      hideToast();
+    }
+  }
+
+  async function submitParentCashout(buttonElement) {
+    const userId = document.getElementById('parentCashoutUser').value;
+    const desc = document.getElementById('parentCashoutDesc').value || "Cash out";
+    const rawAmount = parseFloat(document.getElementById('parentCashoutAmount').value) || 0;
+    const amount = roundNickel(rawAmount);
+
+    if (amount <= 0) return alert("Please enter a valid cash out amount.");
+
+    buttonElement.disabled = true;
+    buttonElement.innerText = "Processing...";
+    showToast("Processing cash out...");
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'processCashout', userId: userId, reason: desc, amount: amount })
+      });
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      buttonElement.disabled = false;
+      buttonElement.innerText = "Process Cash Out";
       hideToast();
     }
   }
