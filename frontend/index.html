@@ -89,20 +89,33 @@
     .checkbox-group { display: flex; flex-direction: column; gap: 0.5rem; text-align: left; margin-top: 0.25rem; }
     .checkbox-group label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
 
-    #toast {
+    #toast-container {
       position: fixed;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    .toast-msg {
       background: var(--text);
       color: var(--card-bg);
       padding: 0.5rem 1rem;
       border-radius: 20px;
       font-size: 0.9rem;
       box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-      display: none;
-      z-index: 1000;
       font-family: var(--body-font);
+      text-align: center;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
@@ -112,7 +125,7 @@
   <h2>Loading...</h2>
 </div>
 
-<div id="toast">Updating...</div>
+<div id="toast-container"></div>
 
 <script src="config.js"></script>
 <script>
@@ -126,7 +139,7 @@
     pendingUserId: null, 
     currentView: 'select', 
     editChoreId: null,
-    selectedDate: new Date().toISOString().split('T')[0],
+    selectedDate: null,
     choreSearchQuery: '',
     choresOpen: true,
     cashoutOpen: false,
@@ -136,6 +149,7 @@
     txFilterChore: '',
     txSearchQuery: '',
     impersonatingFromParent: false,
+    enteredPin: '',
     theme: localStorage.getItem('appTheme') || 'light',
     customPrimary: localStorage.getItem('customPrimary') || '#3b82f6',
     customBg: localStorage.getItem('customBg') || '#f0fdf4',
@@ -147,6 +161,13 @@
   let isFirstLoad = true;
 
   applyTheme(state.theme);
+
+  function isTouchDisplay() {
+    const ua = navigator.userAgent || "";
+    const isSmartDisplay = /CrOS|Fuchsia|Google-Display-Device|SmartDisplay/i.test(ua);
+    const hasTouchPoints = navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
+    return isSmartDisplay || (hasTouchPoints && !/iPhone|iPad|iPod|Android/i.test(ua));
+  }
 
   function applyTheme(themeName) {
     state.theme = themeName;
@@ -288,14 +309,28 @@
     </div>`;
   }
 
-  function showToast(msg = "Updating...") {
-    const t = document.getElementById('toast');
-    t.innerText = msg;
-    t.style.display = 'block';
+  function showToast(msg = "Updating...", duration = 3000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return null;
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-msg';
+    toast.innerText = msg;
+    container.appendChild(toast);
+
+    if (duration > 0) {
+      setTimeout(() => {
+        dismissToast(toast);
+      }, duration);
+    }
+
+    return toast;
   }
 
-  function hideToast() {
-    document.getElementById('toast').style.display = 'none';
+  function dismissToast(toastElement) {
+    if (toastElement && toastElement.parentNode) {
+      toastElement.parentNode.removeChild(toastElement);
+    }
   }
 
   function roundNickel(val) {
@@ -314,8 +349,9 @@
   }
 
   async function loadData(background = false) {
+    let syncToast = null;
     if (!background && !isFirstLoad) {
-      showToast("Syncing...");
+      syncToast = showToast("Syncing...", 2000);
     }
 
     try {
@@ -346,7 +382,7 @@
     } catch (err) {
       console.error("Sync error:", err);
     } finally {
-      hideToast();
+      if (syncToast) dismissToast(syncToast);
     }
   }
 
@@ -380,27 +416,93 @@
   function promptPin(id) {
     state.currentView = 'pin';
     state.pendingUserId = id;
+    state.enteredPin = '';
     const user = state.users.find(u => String(u.ID) === String(id));
     
     const rememberCheckbox = document.getElementById('rememberMe');
     if (rememberCheckbox && rememberCheckbox.checked) {
       localStorage.setItem('rememberedUserId', id);
     }
+
+    if (isTouchDisplay()) {
+      let html = `
+        <div class="header-actions">
+          ${renderThemeSelector()}
+          <button class="header-btn" onclick="clearRemembered()">Back</button>
+        </div>
+        <h2 style="clear: both;">Enter PIN for ${user.Name}</h2>
+        
+        <div id="pinDisplay" style="font-size: 2.5rem; letter-spacing: 0.5rem; text-align: center; margin: 1rem 0; min-height: 3rem;"></div>
+        
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; max-width: 280px; margin: 0 auto;">
+          ${[1,2,3,4,5,6,7,8,9].map(num => `
+            <button class="btn btn-secondary" style="font-size: 1.5rem; padding: 1rem;" onclick="appendPinDigit('${num}')">${num}</button>
+          `).join('')}
+          <button class="btn btn-danger" style="font-size: 1.2rem; padding: 1rem;" onclick="clearPinDigit()">⌫</button>
+          <button class="btn btn-secondary" style="font-size: 1.5rem; padding: 1rem;" onclick="appendPinDigit('0')">0</button>
+          <button class="btn btn-success" style="font-size: 1.2rem; padding: 1rem;" onclick="checkPinDirect()">OK</button>
+        </div>
+      `;
+      document.getElementById('app').innerHTML = html;
+    } else {
+      let html = `
+        <div class="header-actions">
+          ${renderThemeSelector()}
+          <button class="header-btn" onclick="clearRemembered()">Back</button>
+        </div>
+        <h2 style="clear: both;">Enter PIN for ${user.Name}</h2>
+        <input type="password" inputmode="numeric" class="form-control pin-input" id="pinEntry" autofocus oninput="checkPin()">
+      `;
+      document.getElementById('app').innerHTML = html;
+      
+      setTimeout(() => {
+        const pinInput = document.getElementById('pinEntry');
+        if (pinInput) pinInput.focus();
+      }, 50);
+    }
+  }
+
+  function appendPinDigit(digit) {
+    if (state.enteredPin.length < 8) {
+      state.enteredPin += digit;
+      updatePinDisplay();
+      if (state.enteredPin.length === 4) {
+        checkPinDirect();
+      }
+    }
+  }
+
+  function clearPinDigit() {
+    state.enteredPin = state.enteredPin.slice(0, -1);
+    updatePinDisplay();
+  }
+
+  function updatePinDisplay() {
+    const display = document.getElementById('pinDisplay');
+    if (display) {
+      display.innerText = state.enteredPin ? '•'.repeat(state.enteredPin.length) : '';
+    }
+  }
+
+  async function checkPinDirect() {
+    const user = state.users.find(u => String(u.ID) === String(state.pendingUserId));
+    if (!user || !state.enteredPin) return;
+
+    const hashedInput = await sha256(String(state.enteredPin));
     
-    let html = `
-      <div class="header-actions">
-        ${renderThemeSelector()}
-        <button class="header-btn" onclick="clearRemembered()">Back</button>
-      </div>
-      <h2 style="clear: both;">Enter PIN for ${user.Name}</h2>
-      <input type="password" inputmode="numeric" class="form-control pin-input" id="pinEntry" autofocus oninput="checkPin()">
-    `;
-    document.getElementById('app').innerHTML = html;
-    
-    setTimeout(() => {
-      const pinInput = document.getElementById('pinEntry');
-      if (pinInput) pinInput.focus();
-    }, 50);
+    if (hashedInput === String(user.Pin)) {
+      state.currentUser = user;
+      state.impersonatingFromParent = false;
+      if (String(user.ID).toLowerCase() === 'parent') {
+        renderParentDashboard();
+      } else {
+        renderDashboard();
+      }
+    } else {
+      showToast("Incorrect PIN", 5000);
+      state.enteredPin = '';
+      updatePinDisplay();
+    }
   }
 
   async function checkPin() {
@@ -449,7 +551,6 @@
     if (scroller) {
       state.calendarScrollLeft = scroller.scrollLeft;
     }
-    // Toggle filter off if the clicked date was already selected
     if (state.selectedDate === dateStr) {
       state.selectedDate = null;
     } else {
@@ -560,7 +661,6 @@
       <h1 style="clear: both;">${state.currentUser.Name}'s Dashboard</h1>
       <div class="balance">$${parseFloat(state.currentUser.Balance).toFixed(2)}</div>`;
     
-    // Request Cash Out Details
     html += `<details class="collapsible-section" ${state.cashoutOpen ? 'open' : ''} ontoggle="state.cashoutOpen = this.open">
       <summary>💵 Request Cash Out</summary>
       <div style="margin-top: 1rem;">
@@ -691,7 +791,6 @@
     }
     html += `</div>`;
 
-    // Filter transactions by selected date, or show all if no date is selected
     const displayTx = state.selectedDate 
       ? (txByDate[state.selectedDate] || [])
       : myTx;
@@ -739,7 +838,7 @@
       }
     }
   }
-  
+
   function renderParentDashboard() {
     state.currentView = 'parentDashboard';
     state.impersonatingFromParent = false;
@@ -774,7 +873,6 @@
         const isCashout = parseFloat(t.Value) < 0;
         const valAbs = Math.abs(parseFloat(t.Value)).toFixed(2);
         
-        // Format the date/time when the chore or cashout was logged
         const doneDateStr = t.Timestamp ? new Date(t.Timestamp).toLocaleDateString(undefined, { 
           weekday: 'short', 
           month: 'short', 
@@ -848,7 +946,6 @@
       <hr style="border-color: var(--border); margin: 2rem 0;">
       
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
-        <!-- Direct Cash Out Card -->
         <div class="card" style="text-align:left;">
           <h3>💵 Cash Out</h3>
           <div class="form-group">
@@ -870,7 +967,6 @@
           <button class="btn btn-danger" onclick="submitParentCashout(this)">Process Cash Out</button>
         </div>
 
-        <!-- Give Bonus / Deduction Card -->
         <div class="card" style="text-align:left;">
           <h3>🎁 Bonus / Deduction</h3>
           <div class="form-group">
@@ -902,7 +998,7 @@
       
     document.getElementById('app').innerHTML = html;
   }
-  
+
   function renderManageChores() {
     state.currentView = 'manageChores';
     let html = `<div class="header-actions">
@@ -1050,7 +1146,7 @@
 
     buttonElement.disabled = true;
     buttonElement.innerText = "Submitting...";
-    showToast("Submitting chore...");
+    const toast = showToast("Submitting chore...", 0);
 
     try {
       await fetch(API_URL, {
@@ -1069,7 +1165,8 @@
       console.error(err);
       buttonElement.disabled = false;
       buttonElement.innerText = "Mark as Done";
-      hideToast();
+    } finally {
+      dismissToast(toast);
     }
   }
 
@@ -1082,7 +1179,7 @@
 
     buttonElement.disabled = true;
     buttonElement.innerText = "Submitting...";
-    showToast("Submitting cash out request...");
+    const toast = showToast("Submitting cash out request...", 0);
 
     try {
       await fetch(API_URL, {
@@ -1094,7 +1191,8 @@
       console.error(err);
       buttonElement.disabled = false;
       buttonElement.innerText = "Submit Cash Out Request";
-      hideToast();
+    } finally {
+      dismissToast(toast);
     }
   }
 
@@ -1108,7 +1206,7 @@
 
     buttonElement.disabled = true;
     buttonElement.innerText = "Processing...";
-    showToast("Processing cash out...");
+    const toast = showToast("Processing cash out...", 0);
 
     try {
       await fetch(API_URL, {
@@ -1120,13 +1218,14 @@
       console.error(err);
       buttonElement.disabled = false;
       buttonElement.innerText = "Process Cash Out";
-      hideToast();
+    } finally {
+      dismissToast(toast);
     }
   }
 
   async function processApproval(buttonElement, txId, userId, value, action) {
     buttonElement.disabled = true;
-    showToast(action === 'approveChore' ? "Approving..." : "Rejecting...");
+    const toast = showToast(action === 'approveChore' ? "Approving..." : "Rejecting...", 0);
 
     try {
       await fetch(API_URL, {
@@ -1137,7 +1236,8 @@
     } catch (err) {
       console.error(err);
       buttonElement.disabled = false;
-      hideToast();
+    } finally {
+      dismissToast(toast);
     }
   }
 
@@ -1150,7 +1250,7 @@
     
     buttonElement.disabled = true;
     buttonElement.innerText = "Applying...";
-    showToast("Applying transaction...");
+    const toast = showToast("Applying transaction...", 0);
 
     try {
       await fetch(API_URL, {
@@ -1162,7 +1262,8 @@
       console.error(err);
       buttonElement.disabled = false;
       buttonElement.innerText = "Apply Transaction";
-      hideToast();
+    } finally {
+      dismissToast(toast);
     }
   }
 
@@ -1180,7 +1281,7 @@
 
     buttonElement.disabled = true;
     buttonElement.innerText = "Adding...";
-    showToast("Adding chore...");
+    const toast = showToast("Adding chore...", 0);
 
     try {
       await fetch(API_URL, {
@@ -1193,7 +1294,8 @@
       console.error(err);
       buttonElement.disabled = false;
       buttonElement.innerText = "Add Chore";
-      hideToast();
+    } finally {
+      dismissToast(toast);
     }
   }
 
@@ -1211,7 +1313,7 @@
 
     buttonElement.disabled = true;
     buttonElement.innerText = "Saving...";
-    showToast("Saving changes...");
+    const toast = showToast("Saving changes...", 0);
 
     try {
       await fetch(API_URL, {
@@ -1224,7 +1326,8 @@
       console.error(err);
       buttonElement.disabled = false;
       buttonElement.innerText = "Save Changes";
-      hideToast();
+    } finally {
+      dismissToast(toast);
     }
   }
 
@@ -1233,7 +1336,7 @@
     
     buttonElement.disabled = true;
     buttonElement.innerText = "Saving...";
-    showToast("Saving multiplier...");
+    const toast = showToast("Saving multiplier...", 0);
 
     try {
       await fetch(API_URL, {
@@ -1246,7 +1349,8 @@
       console.error(err);
       buttonElement.disabled = false;
       buttonElement.innerText = "Save Multiplier";
-      hideToast();
+    } finally {
+      dismissToast(toast);
     }
   }
 
