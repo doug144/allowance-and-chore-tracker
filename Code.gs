@@ -20,6 +20,11 @@ function doGet(e) {
   if (e.parameter.action === "getData") {
     return responseJSON(getData());
   }
+
+  if (e.parameter.action === "getLastChoreDate") {
+    return responseJSON(getLastChoreDate());
+  }
+
   return ContentService.createTextOutput("Invalid request");
 }
 
@@ -301,6 +306,61 @@ function getData() {
     chores: sheetToObjects(ss.getSheetByName("Chores")),
     transactions: sheetToObjects(ss.getSheetByName("Transactions"))
   };
+}
+
+function getLastChoreDate(userId) {
+  if (!userId) {
+    return ContentService.createTextOutput(
+      JSON.stringify({ status: 'error', message: 'Missing userId parameter' })
+    ).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const txSheet = ss.getSheetByName('Transactions');
+  const txData = sheetToObjects(txSheet);
+
+  // Filter transactions for the requested user where status is not Rejected
+  const userTx = txData.filter(function(t) {
+    return String(t['User ID']) === String(userId) && String(t.Status) !== 'Rejected';
+  });
+
+  if (userTx.length === 0) {
+    return ContentService.createTextOutput(
+      JSON.stringify({
+        userId: String(userId),
+        hasActivity: false,
+        lastChoreTitle: null,
+        lastChoreTimestamp: null,
+        hoursSinceLastChore: 9999
+      })
+    ).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Find the transaction with the latest timestamp
+  let newestTx = userTx[0];
+  let newestTime = new Date(newestTx.Timestamp).getTime();
+
+  for (let i = 1; i < userTx.length; i++) {
+    let currentTxTime = new Date(userTx[i].Timestamp).getTime();
+    if (!isNaN(currentTxTime) && currentTxTime > newestTime) {
+      newestTime = currentTxTime;
+      newestTx = userTx[i];
+    }
+  }
+
+  const now = new Date().getTime();
+  const diffInMs = Math.max(0, now - newestTime);
+  const hoursSince = Math.round((diffInMs / (1000 * 60 * 60)) * 10) / 10;
+
+  const responsePayload = {
+    userId: String(userId),
+    hasActivity: true,
+    lastChoreTitle: newestTx['Chore Title'] || '',
+    lastChoreTimestamp: new Date(newestTime).toISOString(),
+    hoursSinceLastChore: hoursSince
+  };
+
+  return responsePayload;
 }
 
 // Generates a SHA-256 hex string from the plaintext PIN
